@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flexible Load Program Proposal</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:        #faf8f3;
+    --paper:       #ffffff;
+    --ink:         #1c1a16;
+    --ink-soft:    #5a564c;
+    --ink-faint:   #948e80;
+    --navy:        #1c2d4a;
+    --navy-soft:   #33456a;
+    --gold:        #a87423;
+    --gold-soft:   #c98f3a;
+    --line:        #e7e1d4;
+    --line-strong: #d8d0bd;
+    --savings-bg:  #eef1ea;
+    --savings-ink: #3c5a3e;
+    --income-bg:   #fbf1e2;
+    --income-ink:  #8a5a12;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background:var(--page); color:var(--ink); }
+  body{
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    padding-block: 48px 72px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .sheet{
+    max-width: 760px; margin: 0 auto; padding: 0 24px;
+  }
+  .paper{
+    background: var(--paper); border: 1px solid var(--line);
+    box-shadow: 0 1px 3px rgba(28,26,22,0.04), 0 12px 32px rgba(28,26,22,0.06);
+  }
+
+  .sans{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+  /* ---- Letterhead ---- */
+  .letterhead{
+    background: var(--navy); color: #fff; padding: 34px 44px 28px;
+  }
+  .letterhead .brand{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: #cdd6e6; margin-bottom: 18px;
+  }
+  .letterhead h1{
+    font-size: 28px; font-weight: 400; margin: 0 0 6px; letter-spacing: 0.01em;
+  }
+  .letterhead .sub{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13.5px; color: #b9c3d6; margin: 0;
+  }
+
+  .body-pad{ padding: 36px 44px 42px; }
+
+  .prepared-for{
+    display:flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+    padding-bottom: 22px; margin-bottom: 26px; border-bottom: 1px solid var(--line);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .prepared-for .block .k{ font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); margin-bottom: 3px; }
+  .prepared-for .block .v{ font-size: 14.5px; color: var(--ink); }
+
+  h2.section-title{
+    font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--gold); margin: 0 0 14px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    border-bottom: 1px solid var(--line-strong); padding-bottom: 10px;
+  }
+
+  section{ margin-bottom: 34px; }
+  section:last-of-type{ margin-bottom: 0; }
+
+  p.lede{ font-size: 15.5px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 8px; }
+
+  /* ---- Item tables ---- */
+  table.items{
+    width: 100%; border-collapse: collapse;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  table.items th{
+    text-align:left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-faint); font-weight: 600; padding: 0 0 8px; border-bottom: 1px solid var(--line-strong);
+  }
+  table.items th.num, table.items td.num{ text-align: right; }
+  table.items td{
+    padding: 13px 0; border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  table.items td.item-name{ font-size: 14.5px; color: var(--ink); font-weight: 600; }
+  table.items td.item-desc{ font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+  table.items td.num{
+    font-variant-numeric: tabular-nums; font-size: 15px; white-space: nowrap; padding-top: 13px;
+  }
+  table.items tr.total td{ border-bottom: none; border-top: 2px solid var(--navy); padding-top: 14px; }
+  table.items tr.total td.item-name{ font-size: 15.5px; }
+  table.items tr.total td.num{ font-size: 17px; font-weight: 700; color: var(--navy); }
+  table.items tr.subtract td.num{ color: #8a3a2f; }
+
+  .badge{
+    display:inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+    padding: 2px 8px; border-radius: 3px; margin-top: 5px;
+  }
+  .badge.savings{ background: var(--savings-bg); color: var(--savings-ink); }
+  .badge.income{ background: var(--income-bg); color: var(--income-ink); }
+
+  /* ---- Net value callout ---- */
+  .net-callout{
+    background: var(--navy); color: #fff; border-radius: 4px;
+    padding: 26px 30px; display:flex; align-items:center; justify-content:space-between;
+    flex-wrap: wrap; gap: 14px; margin-top: 4px;
+  }
+  .net-callout .label{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #b9c3d6;
+  }
+  .net-callout .value{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 34px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .net-callout .caption{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px; color: #b9c3d6; max-width: 30ch;
+  }
+
+  /* ---- Explanation ---- */
+  .explain-grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .explain-card{
+    border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px;
+  }
+  .explain-card.savings{ border-top: 3px solid var(--savings-ink); }
+  .explain-card.income{ border-top: 3px solid var(--income-ink); }
+  .explain-card h3{ font-size: 14px; margin: 0 0 8px; }
+  .explain-card p{ font-size: 13px; line-height: 1.6; color: var(--ink-soft); margin: 0; }
+  @media (max-width: 560px){ .explain-grid{ grid-template-columns: 1fr; } }
+
+  /* ---- CTA ---- */
+  .cta{
+    text-align: center; padding: 30px 20px 4px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .cta p{ font-size: 14px; color: var(--ink-soft); margin: 0 0 16px; }
+  .cta a.button{
+    display:inline-block; background: var(--gold); color: #fff; text-decoration:none;
+    padding: 13px 28px; border-radius: 4px; font-size: 14px; font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .cta a.button:hover{ background: var(--gold-soft); }
+
+  footer.disclaimer{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 11px; color: var(--ink-faint); line-height: 1.6;
+    padding: 26px 44px 0; margin-top: 30px; border-top: 1px solid var(--line);
+  }
+
+  @media (max-width: 600px){
+    .letterhead, .body-pad{ padding-left: 24px; padding-right: 24px; }
+    .net-callout{ flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="paper">
+
+    <div class="letterhead">
+      <div class="brand">Flexpoint Energy Partners &nbsp;·&nbsp; Demand Flexibility Program</div>
+      <h1>Your Flexible Load Value Proposal</h1>
+      <p class="sub">An estimate of the annual value available from enrolling your facility's flexible capacity.</p>
+    </div>
+
+    <div class="body-pad">
+
+      <div class="prepared-for">
+        <div class="block">
+          <div class="k">Prepared for</div>
+          <div class="v">Sample Customer — 5 MW C&amp;I Facility</div>
+        </div>
+        <div class="block">
+          <div class="k">Flexible capacity</div>
+          <div class="v">5 MW curtailable load</div>
+        </div>
+        <div class="block">
+          <div class="k">Program commitment</div>
+          <div class="v">Fully committed (contracted case)</div>
+        </div>
+        <div class="block">
+          <div class="k">Market scenario</div>
+          <div class="v">Typical year</div>
+        </div>
+      </div>
+
+      <section>
+        <h2 class="section-title">Annual Value</h2>
+        <table class="items">
+          <thead>
+            <tr><th>Value Item</th><th class="num">Annual Amount</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="item-name">Peak demand charge reduction</div>
+                <div class="item-desc">By reducing electricity use during a handful of critical peak
+                  hours each year, you permanently lower a major component of next year's utility bill.</div>
+                <span class="badge savings">Lowers your bill</span>
+              </td>
+              <td class="num">$300,000</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="item-name">Grid reliability program payments</div>
+                <div class="item-desc">You're paid an annual standby fee for keeping your facility ready
+                  to reduce load if the grid ever needs it — most years, you're never actually called on.</div>
+                <span class="badge income">New income</span>
+              </td>
+              <td class="num">$200,000</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="item-name">Energy market volatility savings</div>
+                <div class="item-desc">On the rare days energy prices spike, your facility can cut usage
+                  and avoid paying those elevated prices. Shown here for a typical year.</div>
+                <span class="badge savings">Lowers your bill</span>
+              </td>
+              <td class="num">$150,000</td>
+            </tr>
+            <tr class="total">
+              <td class="item-name">Total annual value</td>
+              <td class="num">$650,000</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2 class="section-title">Program Costs</h2>
+        <table class="items">
+          <thead>
+            <tr><th>Cost Item</th><th class="num">Annual Amount</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="item-name">Program management fee</div>
+                <div class="item-desc">A flat annual fee covering enrollment, monitoring, and dispatch
+                  of your facility's flexible capacity.</div>
+              </td>
+              <td class="num subtract">$(15,000)</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="item-name">Performance-based share</div>
+                <div class="item-desc">15% of the grid reliability payments and market volatility
+                  savings above — we only earn this when that new value is actually delivered.</div>
+              </td>
+              <td class="num subtract">$(52,500)</td>
+            </tr>
+            <tr>
+              <td>
+                <div class="item-name">Equipment &amp; hardware</div>
+                <div class="item-desc">No new equipment required — the program uses your facility's
+                  existing controls.</div>
+              </td>
+              <td class="num">$0</td>
+            </tr>
+            <tr class="total">
+              <td class="item-name">Total program costs</td>
+              <td class="num subtract">$(67,500)</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2 class="section-title">Net Annual Value</h2>
+        <div class="net-callout">
+          <div>
+            <div class="label">Estimated net value to you, per year</div>
+            <div class="value">$582,500</div>
+          </div>
+          <div class="caption">Total annual value of $650,000 minus total program costs of $67,500.</div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Understanding Your Value</h2>
+        <p class="lede">This proposal combines two different kinds of value, and it's worth knowing
+          the difference between them:</p>
+        <div class="explain-grid">
+          <div class="explain-card savings">
+            <h3>Lower bills (cost avoidance)</h3>
+            <p>Some of this value never shows up as a payment to you — it shows up as a smaller
+              number on your existing utility bill. You don't receive a check; you simply pay less
+              than you would have.</p>
+          </div>
+          <div class="explain-card income">
+            <h3>New income (enrolled revenue)</h3>
+            <p>The rest is new money that didn't exist before — payments for keeping your facility
+              available to help the grid. This shows up as new income on top of your normal
+              operations.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="cta">
+        <p>Ready to see how this applies to your facility?</p>
+        <a class="button" href="mailto:proposals@flexpointenergy.example?subject=Schedule%20a%20Walkthrough%20-%20Flexible%20Load%20Program">Schedule a Walkthrough</a>
+      </div>
+
+    </div>
+
+    <footer class="disclaimer">
+      Figures above are estimates based on program rate assumptions and the committed (100%
+      forecast accuracy) scenario at a typical market year, and are provided for illustrative
+      planning purposes only. Actual results depend on real-time grid conditions, program
+      performance, and final contracted terms.
+    </footer>
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERCOT Demand Value — Internal Analysis</title>
+<style>
+  :root{
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --panel:          #ffffff;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --pill-bg:        #f0efec;
+
+    --series-4cp:       #2a78d6;
+    --series-ancillary: #eb6834;
+    --series-rt:        #1baf7a;
+    --series-net:       #4a3aa7;
+
+    --accent-wash: rgba(42,120,214,0.08);
+  }
+  :root:where(:not([data-theme="light"])) {
+    @media (prefers-color-scheme: dark){
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --panel:          #212120;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --pill-bg:        #2a2a28;
+
+      --series-4cp:       #3987e5;
+      --series-ancillary: #d95926;
+      --series-rt:        #199e70;
+      --series-net:       #9085e9;
+
+      --accent-wash: rgba(57,135,229,0.12);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --panel:          #212120;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --pill-bg:        #2a2a28;
+
+    --series-4cp:       #3987e5;
+    --series-ancillary: #d95926;
+    --series-rt:        #199e70;
+    --series-net:       #9085e9;
+
+    --accent-wash: rgba(57,135,229,0.12);
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0; background:var(--page); color:var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  body{ padding-block: 28px 64px; }
+  .wrap{ max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+
+  header.top{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+    margin-bottom: 24px; flex-wrap: wrap;
+  }
+  header.top h1{ font-size: 22px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header.top p{ margin:0; color:var(--text-secondary); font-size: 13.5px; max-width: 60ch; }
+  .theme-toggle{
+    border:1px solid var(--border); background:var(--panel); color:var(--text-secondary);
+    border-radius: 8px; padding: 7px 12px; font-size: 12.5px; cursor:pointer;
+    font-family: inherit;
+  }
+  .theme-toggle:hover{ color:var(--text-primary); }
+
+  /* ---- Inputs / filter row ---- */
+  .inputs-panel{
+    background:var(--panel); border:1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 22px;
+    display:flex; flex-wrap:wrap; gap:22px; align-items:flex-end;
+  }
+  .field{ display:flex; flex-direction:column; gap:6px; min-width: 210px; flex: 1 1 240px; }
+  .field label{ font-size: 12px; font-weight:600; color:var(--text-secondary); }
+  .field .row{ display:flex; align-items:center; gap:10px; }
+  .field input[type="range"]{
+    flex:1; accent-color: var(--series-4cp); height: 4px;
+  }
+  .field input[type="number"]{
+    width: 64px; padding: 5px 6px; border-radius:6px; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-primary); font-size:13px; font-family:inherit;
+  }
+  .field .hint{ font-size: 11.5px; color:var(--text-muted); }
+  .segmented{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .segmented button{
+    flex:1; border:none; background:var(--surface-1); color:var(--text-secondary);
+    padding: 8px 10px; font-size: 12.5px; font-family: inherit; cursor:pointer;
+    border-right: 1px solid var(--border);
+  }
+  .segmented button:last-child{ border-right:none; }
+  .segmented button.active{ background: var(--series-4cp); color:#fff; font-weight:600; }
+  .reset-btn{
+    border:1px solid var(--border); background:transparent; color:var(--text-muted);
+    border-radius:8px; padding:8px 12px; font-size:12px; cursor:pointer; font-family:inherit;
+    align-self:flex-end;
+  }
+  .reset-btn:hover{ color:var(--text-primary); border-color: var(--text-muted); }
+
+  /* ---- Hero stats ---- */
+  .stat-row{ display:grid; grid-template-columns: repeat(3, 1fr); gap:14px; margin-bottom: 26px; }
+  .stat-tile{
+    background:var(--panel); border:1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .stat-tile .label{ font-size: 12.5px; color:var(--text-secondary); font-weight:600; margin-bottom:8px; }
+  .stat-tile .value{ font-size: 30px; font-weight:700; font-variant-numeric: proportional-nums; letter-spacing:-0.01em; }
+  .stat-tile.net .value{ color: var(--series-net); }
+  .stat-tile .sub{ font-size: 11.5px; color:var(--text-muted); margin-top:6px; }
+
+  /* ---- Chart cards ---- */
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding: 20px 22px 16px; margin-bottom: 20px;
+  }
+  .card h2{ font-size: 15px; margin: 0 0 2px; font-weight:700; }
+  .card .desc{ font-size: 12.5px; color:var(--text-secondary); margin: 0 0 14px; max-width: 72ch; }
+  .card svg{ width:100%; height:auto; display:block; overflow: visible; }
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:12px; color:var(--text-secondary); }
+  .legend .item{ display:flex; align-items:center; gap:6px; }
+  .legend .swatch{ width:10px; height:10px; border-radius:2px; display:inline-block; }
+  .legend .line-key{ width:14px; height:2px; display:inline-block; border-radius:1px; }
+  .foot-note{ font-size: 11.5px; color:var(--text-muted); margin-top: 10px; }
+
+  .pill{
+    display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:600;
+    padding: 2px 8px; border-radius: 999px; background:var(--pill-bg); color:var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .bar-tick-label{ font-size: 11px; fill: var(--text-secondary); }
+  .bar-value-label{ font-size: 12px; font-weight:700; fill: var(--text-primary); }
+  .axis-label{ font-size: 10.5px; fill: var(--text-muted); }
+  .gridline{ stroke: var(--gridline); stroke-width:1; }
+  .baseline{ stroke: var(--baseline); stroke-width:1; }
+
+  table.data-table{ width:100%; border-collapse: collapse; font-size: 12.5px; margin-top: 6px; }
+  table.data-table th, table.data-table td{
+    text-align:right; padding: 7px 10px; border-bottom: 1px solid var(--gridline);
+    font-variant-numeric: tabular-nums;
+  }
+  table.data-table th:first-child, table.data-table td:first-child{ text-align:left; font-variant-numeric: normal; }
+  table.data-table thead th{ color:var(--text-secondary); font-weight:600; font-size:11.5px; }
+  table.data-table tbody tr:last-child td{ border-bottom:none; }
+
+  /* Tooltip */
+  #tooltip{
+    position: fixed; pointer-events:none; z-index: 50;
+    background: var(--text-primary); color: var(--page);
+    border-radius: 8px; padding: 8px 10px; font-size: 12px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+    opacity:0; transform: translate(-50%, -100%); transition: opacity 90ms ease;
+    max-width: 240px;
+  }
+  #tooltip.show{ opacity:1; }
+  #tooltip .tt-value{ font-weight:700; font-size:13px; }
+  #tooltip .tt-label{ opacity:0.75; font-size:11px; margin-top:2px; }
+
+  .mark-hit{ cursor: pointer; }
+  .mark-hit:focus{ outline: 2px solid var(--series-4cp); outline-offset: 2px; }
+
+  @media (max-width: 720px){
+    .stat-row{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>ERCOT Demand Value — Internal Analysis</h1>
+      <p>Live scenario model for a flexible C&amp;I curtailable load, built directly on
+        <code>src/ercot_demand_value.py</code>. Adjust the inputs below — every stat and chart
+        recalculates using the same formulas as the Python engine.</p>
+    </div>
+    <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+  </header>
+
+  <div class="inputs-panel">
+    <div class="field">
+      <label for="mwRange">Curtailable capacity</label>
+      <div class="row">
+        <input type="range" id="mwRange" min="0.5" max="50" step="0.5" value="5">
+        <input type="number" id="mwNumber" min="0.5" max="50" step="0.5" value="5">
+        <span class="hint">MW</span>
+      </div>
+      <span class="hint" id="mwHint"></span>
+    </div>
+
+    <div class="field">
+      <label for="accRange">Forecast accuracy assumption</label>
+      <div class="row">
+        <input type="range" id="accRange" min="0" max="100" step="1" value="75">
+        <input type="number" id="accNumber" min="0" max="100" step="1" value="75">
+        <span class="hint">%</span>
+      </div>
+      <span class="hint" id="accHint"></span>
+    </div>
+
+    <div class="field">
+      <label>Market condition</label>
+      <div class="segmented" id="marketSeg">
+        <button data-market="weak" type="button">Weak</button>
+        <button data-market="base" type="button" class="active">Base</button>
+        <button data-market="strong" type="button">Strong</button>
+      </div>
+      <span class="hint" id="marketHint"></span>
+    </div>
+
+    <button class="reset-btn" id="resetBtn" type="button">Reset to sample scenario</button>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-tile">
+      <div class="label">Gross annual value</div>
+      <div class="value" id="statGross">—</div>
+      <div class="sub">4CP avoidance + ancillary services + RT spike avoidance</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">Program costs</div>
+      <div class="value" id="statCosts">—</div>
+      <div class="sub">Flat platform fee + 15% share of ancillary &amp; RT avoidance revenue</div>
+    </div>
+    <div class="stat-tile net">
+      <div class="label">Net annual value</div>
+      <div class="value" id="statNet">—</div>
+      <div class="sub">Gross value minus program costs</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Revenue stream breakdown</h2>
+    <p class="desc">Annual value by stream at the current inputs. Tags mark whether the stream
+      is a reduction to the customer's existing bill (cost avoidance) or new settled income
+      (enrolled revenue) — that distinction is what drives which streams the 15% revenue share
+      applies to.</p>
+    <svg id="chartBreakdown" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div class="card">
+    <h2>4CP avoidance — cumulative value by forecast accuracy</h2>
+    <p class="desc">The engine treats the 4 annual 4CP intervals as a step function, not a
+      smooth discount — missing a call loses that interval's value entirely. Each line is one
+      of the 5 discrete outcomes (0 of 4 through 4 of 4 correctly called), projected flat over
+      a 5-year horizon at the current MW and rate. The line matching your current forecast
+      accuracy slider is highlighted; the rest are shown for reference.</p>
+    <svg id="chartForecast" viewBox="0 0 640 340" preserveAspectRatio="xMidYMid meet"></svg>
+    <p class="foot-note" id="forecastFoot"></p>
+  </div>
+
+  <div class="card">
+    <h2>Market condition range — RT avoidance &amp; net value</h2>
+    <p class="desc">RT price spike avoidance is the one stream that swings with grid volatility.
+      This holds MW and forecast accuracy at their current values and shows the annual RT
+      avoidance and resulting net value across the weak / base / strong range. The current
+      market condition is highlighted.</p>
+    <svg id="chartMarket" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend">
+      <span class="item"><span class="swatch" style="background:var(--series-rt)"></span>RT spike avoidance</span>
+      <span class="item"><span class="swatch" style="background:var(--series-net)"></span>Net annual value</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Scenario data</h2>
+    <p class="desc">Full numeric readout of everything above, for reference or copy/paste.</p>
+    <table class="data-table" id="dataTable">
+      <thead>
+        <tr><th>Metric</th><th>Value</th></tr>
+      </thead>
+      <tbody id="dataTableBody"></tbody>
+    </table>
+  </div>
+
+  <p class="foot-note">
+    Rate assumptions (four_cp_rate_per_mw_year, ancillary_rate_per_kw_year,
+    rt_spike_rate_per_kw_year, platform_fee_annual, revenue_share_pct) mirror the
+    <code>ProgramRates</code> defaults in <code>src/ercot_demand_value.py</code> as of the last
+    time this file was updated. Replace both places together if the Python defaults change.
+  </p>
+
+</div>
+
+<div id="tooltip" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =====================================================================
+   * Calculation engine — mirrors src/ercot_demand_value.py
+   *
+   * This is a deliberate re-implementation, not a port through a shared
+   * library: the dashboard runs standalone with no build step. Keep the
+   * formulas and DEFAULT_RATES below in lockstep with the Python engine's
+   * calculate_4cp_avoidance / calculate_ancillary_services_revenue /
+   * calculate_rt_price_spike_avoidance / calculate_program_costs / and
+   * ProgramRates whenever either side changes.
+   * ===================================================================== */
+
+  const ANNUAL_4CP_INTERVALS = 4;
+
+  const DEFAULT_RATES = {
+    fourCpRatePerMwYear: 60000,
+    ancillaryRatePerKwYear: 40,
+    rtSpikeRatePerKwYear: { weak: 15, base: 30, strong: 60 },
+    platformFeeAnnual: 15000,
+    revenueSharePct: 0.15,
+  };
+
+  // Python 3's round() is round-half-to-even (banker's rounding), which
+  // differs from JS Math.round's round-half-up at exact .5 boundaries
+  // (forecast_accuracy of 12.5%, 37.5%, 62.5%, 87.5%). Replicated here so
+  // the JS model agrees with the Python engine at every input, not just
+  // the common ones.
+  function pythonRound(x) {
+    const floor = Math.floor(x);
+    const diff = x - floor;
+    if (diff < 0.5) return floor;
+    if (diff > 0.5) return floor + 1;
+    return (floor % 2 === 0) ? floor : floor + 1;
+  }
+
+  function calculate4CPAvoidance(curtailableMw, forecastAccuracy, fourCpRatePerMwYear) {
+    const correctlyCalledIntervals = pythonRound(forecastAccuracy * ANNUAL_4CP_INTERVALS);
+    const fullValue = curtailableMw * fourCpRatePerMwYear;
+    return fullValue * (correctlyCalledIntervals / ANNUAL_4CP_INTERVALS);
+  }
+
+  function calculateAncillaryServicesRevenue(curtailableMw, ancillaryRatePerKwYear) {
+    const curtailableKw = curtailableMw * 1000;
+    return curtailableKw * ancillaryRatePerKwYear;
+  }
+
+  function calculateRtPriceSpikeAvoidance(curtailableMw, marketCondition, rtSpikeRatePerKwYear) {
+    const curtailableKw = curtailableMw * 1000;
+    const rate = rtSpikeRatePerKwYear[marketCondition];
+    return curtailableKw * rate;
+  }
+
+  function calculateProgramCosts(ancillaryRevenue, rtAvoidanceRevenue, platformFeeAnnual, revenueSharePct) {
+    const sharedRevenueBase = ancillaryRevenue + rtAvoidanceRevenue;
+    return platformFeeAnnual + sharedRevenueBase * revenueSharePct;
+  }
+
+  function runScenario(curtailableMw, forecastAccuracy, marketCondition, rates) {
+    rates = rates || DEFAULT_RATES;
+    const fourCpValue = calculate4CPAvoidance(curtailableMw, forecastAccuracy, rates.fourCpRatePerMwYear);
+    const ancillaryValue = calculateAncillaryServicesRevenue(curtailableMw, rates.ancillaryRatePerKwYear);
+    const rtAvoidanceValue = calculateRtPriceSpikeAvoidance(curtailableMw, marketCondition, rates.rtSpikeRatePerKwYear);
+    const grossValue = fourCpValue + ancillaryValue + rtAvoidanceValue;
+    const programCosts = calculateProgramCosts(ancillaryValue, rtAvoidanceValue, rates.platformFeeAnnual, rates.revenueSharePct);
+    const netValue = grossValue - programCosts;
+    return { fourCpValue, ancillaryValue, rtAvoidanceValue, grossValue, programCosts, netValue };
+  }
+
+  /* ===================================================================== */
+
+  const state = { mw: 5, accuracy: 0.75, market: "base" };
+
+  const fmtUSD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  const fmtUSDCompact = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
+  const fmtPct = (x) => Math.round(x * 100) + "%";
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) {
+    const node = document.createElementNS(svgNS, tag);
+    if (attrs) for (const k in attrs) node.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function niceNumber(x) {
+    if (x <= 0) return 1;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(x)));
+    const frac = x / magnitude;
+    let nice;
+    if (frac <= 1) nice = 1;
+    else if (frac <= 2) nice = 2;
+    else if (frac <= 5) nice = 5;
+    else nice = 10;
+    return nice * magnitude;
+  }
+  function niceScale(maxVal, tickCount) {
+    tickCount = tickCount || 4;
+    const step = niceNumber(maxVal / tickCount);
+    const scaleMax = step * (Math.ceil(maxVal / step) || 1);
+    return { step, scaleMax };
+  }
+
+  /* ---- Tooltip ---- */
+  const tooltipEl = document.getElementById("tooltip");
+  function showTooltip(x, y, valueText, labelText) {
+    tooltipEl.innerHTML = "";
+    const v = document.createElement("div");
+    v.className = "tt-value";
+    v.textContent = valueText;
+    const l = document.createElement("div");
+    l.className = "tt-label";
+    l.textContent = labelText;
+    tooltipEl.appendChild(v);
+    tooltipEl.appendChild(l);
+    tooltipEl.style.left = x + "px";
+    tooltipEl.style.top = (y - 10) + "px";
+    tooltipEl.classList.add("show");
+  }
+  function hideTooltip() { tooltipEl.classList.remove("show"); }
+
+  function wireTooltip(node, valueText, labelText) {
+    node.classList.add("mark-hit");
+    node.setAttribute("tabindex", "0");
+    const handler = (evt) => {
+      const point = evt.touches ? evt.touches[0] : evt;
+      showTooltip(point.clientX, point.clientY, valueText, labelText);
+    };
+    node.addEventListener("pointermove", handler);
+    node.addEventListener("pointerenter", handler);
+    node.addEventListener("pointerleave", hideTooltip);
+    node.addEventListener("focus", () => {
+      const box = node.getBoundingClientRect();
+      showTooltip(box.left + box.width / 2, box.top, valueText, labelText);
+    });
+    node.addEventListener("blur", hideTooltip);
+  }
+
+  /* =====================================================================
+   * Chart 1 — Revenue stream breakdown (bar chart)
+   * ===================================================================== */
+
+  const STREAM_META = [
+    { key: "fourCpValue", label: "4CP Avoidance", full: "4CP transmission charge avoidance", tag: "Cost avoidance", color: "var(--series-4cp)" },
+    { key: "ancillaryValue", label: "Ancillary Services", full: "Ancillary services (ERS/RRS/ECRS)", tag: "Enrolled revenue", color: "var(--series-ancillary)" },
+    { key: "rtAvoidanceValue", label: "RT Spike Avoidance", full: "Real-time price spike avoidance", tag: "Cost avoidance", color: "var(--series-rt)" },
+  ];
+
+  function renderBreakdownChart(result) {
+    const svg = document.getElementById("chartBreakdown");
+    svg.innerHTML = "";
+    const W = 640, H = 360;
+    const marginTop = 20, marginBottom = 78, marginLeft = 48, marginRight = 20;
+    const plotW = W - marginLeft - marginRight;
+    const plotH = H - marginTop - marginBottom;
+
+    const values = STREAM_META.map(s => result[s.key]);
+    const { step, scaleMax } = niceScale(Math.max(...values, 1), 4);
+
+    const yFor = (v) => marginTop + plotH - (v / scaleMax) * plotH;
+
+    // gridlines + y ticks
+    const tickCount = Math.round(scaleMax / step);
+    for (let i = 0; i <= tickCount; i++) {
+      const v = i * step;
+      const y = yFor(v);
+      el("line", { x1: marginLeft, x2: W - marginRight, y1: y, y2: y, class: "gridline" }, svg);
+      const t = el("text", { x: marginLeft - 8, y: y + 4, class: "axis-label", "text-anchor": "end" }, svg);
+      t.textContent = fmtUSDCompact.format(v);
+    }
+    el("line", { x1: marginLeft, x2: W - marginRight, y1: marginTop + plotH, y2: marginTop + plotH, class: "baseline" }, svg);
+
+    const bandW = plotW / STREAM_META.length;
+    const barW = 24;
+
+    STREAM_META.forEach((s, i) => {
+      const cx = marginLeft + bandW * i + bandW / 2;
+      const v = values[i];
+      const y = yFor(v);
+      const barH = (marginTop + plotH) - y;
+
+      const bar = el("rect", {
+        x: cx - barW / 2, y: y, width: barW, height: Math.max(barH, 0),
+        rx: 4, ry: 4, fill: s.color,
+      }, svg);
+      wireTooltip(bar, fmtUSD.format(v), s.full + " — " + s.tag.toLowerCase());
+
+      const valLabel = el("text", { x: cx, y: y - 10, class: "bar-value-label", "text-anchor": "middle" }, svg);
+      valLabel.textContent = fmtUSD.format(v);
+
+      const catLabel = el("text", { x: cx, y: marginTop + plotH + 22, class: "bar-tick-label", "text-anchor": "middle" }, svg);
+      catLabel.textContent = s.label;
+
+      const fo = el("foreignObject", { x: cx - 62, y: marginTop + plotH + 34, width: 124, height: 24 }, svg);
+      const div = document.createElement("div");
+      div.style.display = "flex";
+      div.style.justifyContent = "center";
+      const pill = document.createElement("span");
+      pill.className = "pill";
+      pill.textContent = (s.tag === "Cost avoidance" ? "↓ " : "+ ") + s.tag;
+      div.appendChild(pill);
+      fo.appendChild(div);
+      svg.appendChild(fo);
+    });
+  }
+
+  /* =====================================================================
+   * Chart 2 — 4CP cumulative value by forecast accuracy (step function)
+   * ===================================================================== */
+
+  function renderForecastChart(result, mw, currentAccuracy, rates) {
+    const svg = document.getElementById("chartForecast");
+    svg.innerHTML = "";
+    const W = 640, H = 340;
+    const marginTop = 20, marginBottom = 40, marginLeft = 56, marginRight = 92;
+    const plotW = W - marginLeft - marginRight;
+    const plotH = H - marginTop - marginBottom;
+
+    const years = [1, 2, 3, 4, 5];
+    const tiers = [0, 1, 2, 3, 4]; // correctly-called intervals out of 4
+    const currentTier = pythonRound(currentAccuracy * ANNUAL_4CP_INTERVALS);
+
+    const series = tiers.map((tier) => {
+      const annualValue = mw * rates.fourCpRatePerMwYear * (tier / ANNUAL_4CP_INTERVALS);
+      return {
+        tier,
+        pct: tier / ANNUAL_4CP_INTERVALS,
+        points: years.map((y) => ({ year: y, cumulative: annualValue * y })),
+        isCurrent: tier === currentTier,
+      };
+    });
+
+    const maxCumulative = Math.max(...series.map(s => s.points[s.points.length - 1].cumulative), 1);
+    const { step, scaleMax } = niceScale(maxCumulative, 4);
+
+    const xFor = (year) => marginLeft + ((year - 1) / (years.length - 1)) * plotW;
+    const yFor = (v) => marginTop + plotH - (v / scaleMax) * plotH;
+
+    const tickCount = Math.round(scaleMax / step);
+    for (let i = 0; i <= tickCount; i++) {
+      const v = i * step;
+      const y = yFor(v);
+      el("line", { x1: marginLeft, x2: W - marginRight, y1: y, y2: y, class: "gridline" }, svg);
+      const t = el("text", { x: marginLeft - 8, y: y + 4, class: "axis-label", "text-anchor": "end" }, svg);
+      t.textContent = fmtUSDCompact.format(v);
+    }
+    years.forEach((y) => {
+      const x = xFor(y);
+      const t = el("text", { x, y: marginTop + plotH + 22, class: "axis-label", "text-anchor": "middle" }, svg);
+      t.textContent = "Year " + y;
+    });
+    el("line", { x1: marginLeft, x2: W - marginRight, y1: marginTop + plotH, y2: marginTop + plotH, class: "baseline" }, svg);
+
+    // draw non-current lines first, current line last so it's on top
+    const ordered = series.slice().sort((a, b) => (a.isCurrent ? 1 : 0) - (b.isCurrent ? 1 : 0));
+
+    ordered.forEach((s) => {
+      const pathD = s.points.map((p, i) => (i === 0 ? "M" : "L") + xFor(p.year) + " " + yFor(p.cumulative)).join(" ");
+      const color = s.isCurrent ? "var(--series-4cp)" : "var(--baseline)";
+      el("path", {
+        d: pathD, fill: "none", stroke: color,
+        "stroke-width": 2, opacity: s.isCurrent ? 1 : 0.65,
+        "stroke-linejoin": "round", "stroke-linecap": "round",
+      }, svg);
+
+      s.points.forEach((p) => {
+        const cx = xFor(p.year), cy = yFor(p.cumulative);
+        el("circle", { cx, cy, r: 5, fill: "var(--surface-1)" }, svg); // surface ring
+        const dot = el("circle", {
+          cx, cy, r: s.isCurrent ? 4 : 3,
+          fill: color,
+        }, svg);
+        wireTooltip(
+          dot,
+          fmtUSD.format(p.cumulative),
+          "Year " + p.year + " · " + s.tier + " of 4 intervals (" + fmtPct(s.pct) + ") correctly called" + (s.isCurrent ? " · current" : "")
+        );
+      });
+
+      const last = s.points[s.points.length - 1];
+      const labelX = xFor(last.year) + 8;
+      const labelY = yFor(last.cumulative);
+      const pctLabel = el("text", {
+        x: labelX, y: labelY - (s.isCurrent ? 6 : 0),
+        class: "axis-label", "font-weight": s.isCurrent ? "700" : "400",
+        fill: s.isCurrent ? "var(--series-4cp)" : "var(--text-muted)",
+      }, svg);
+      pctLabel.textContent = fmtPct(s.pct);
+      if (s.isCurrent) {
+        const valLabel = el("text", { x: labelX, y: labelY + 10, class: "bar-tick-label", fill: "var(--text-primary)", "font-weight": "700" }, svg);
+        valLabel.textContent = fmtUSD.format(last.cumulative);
+      }
+    });
+
+    document.getElementById("forecastFoot").textContent =
+      "Current scenario: " + currentTier + " of 4 intervals correctly called (" + fmtPct(currentTier / ANNUAL_4CP_INTERVALS) +
+      ") → 5-year cumulative 4CP avoidance of " + fmtUSD.format(mw * rates.fourCpRatePerMwYear * (currentTier / ANNUAL_4CP_INTERVALS) * 5) + ".";
+  }
+
+  /* =====================================================================
+   * Chart 3 — Market condition range (grouped bars)
+   * ===================================================================== */
+
+  function renderMarketChart(mw, accuracy, currentMarket, rates) {
+    const svg = document.getElementById("chartMarket");
+    svg.innerHTML = "";
+    const W = 640, H = 360;
+    const marginTop = 20, marginBottom = 46, marginLeft = 48, marginRight = 20;
+    const plotW = W - marginLeft - marginRight;
+    const plotH = H - marginTop - marginBottom;
+
+    const conditions = ["weak", "base", "strong"];
+    const rows = conditions.map((cond) => {
+      const r = runScenario(mw, accuracy, cond, rates);
+      return { cond, rt: r.rtAvoidanceValue, net: r.netValue, isCurrent: cond === currentMarket };
+    });
+
+    const maxVal = Math.max(...rows.map(r => Math.max(r.rt, r.net)), 1);
+    const { step, scaleMax } = niceScale(maxVal, 4);
+    const yFor = (v) => marginTop + plotH - (v / scaleMax) * plotH;
+
+    const tickCount = Math.round(scaleMax / step);
+    for (let i = 0; i <= tickCount; i++) {
+      const v = i * step;
+      const y = yFor(v);
+      el("line", { x1: marginLeft, x2: W - marginRight, y1: y, y2: y, class: "gridline" }, svg);
+      const t = el("text", { x: marginLeft - 8, y: y + 4, class: "axis-label", "text-anchor": "end" }, svg);
+      t.textContent = fmtUSDCompact.format(v);
+    }
+    el("line", { x1: marginLeft, x2: W - marginRight, y1: marginTop + plotH, y2: marginTop + plotH, class: "baseline" }, svg);
+
+    const bandW = plotW / conditions.length;
+    const barW = 22, gap = 6;
+
+    rows.forEach((row, i) => {
+      const bandCx = marginLeft + bandW * i + bandW / 2;
+
+      if (row.isCurrent) {
+        el("rect", {
+          x: marginLeft + bandW * i + 4, y: marginTop, width: bandW - 8, height: plotH,
+          fill: "var(--accent-wash)", rx: 6,
+        }, svg);
+      }
+
+      const pairs = [
+        { v: row.rt, color: "var(--series-rt)", label: "RT spike avoidance" },
+        { v: row.net, color: "var(--series-net)", label: "Net annual value" },
+      ];
+      pairs.forEach((p, j) => {
+        const cx = bandCx + (j === 0 ? -1 : 1) * (barW / 2 + gap / 2);
+        const y = yFor(p.v);
+        const barH = (marginTop + plotH) - y;
+        const bar = el("rect", {
+          x: cx - barW / 2, y, width: barW, height: Math.max(barH, 0),
+          rx: 4, ry: 4, fill: p.color,
+        }, svg);
+        wireTooltip(bar, fmtUSD.format(p.v), p.label + " — " + row.cond + " market" + (row.isCurrent ? " (current)" : ""));
+
+        const valLabel = el("text", { x: cx, y: y - 8, class: "axis-label", "text-anchor": "middle", "font-weight": "700", fill: "var(--text-primary)" }, svg);
+        valLabel.textContent = fmtUSDCompact.format(p.v);
+      });
+
+      const catLabel = el("text", {
+        x: bandCx, y: marginTop + plotH + 22, class: "bar-tick-label", "text-anchor": "middle",
+        "font-weight": row.isCurrent ? "700" : "400",
+        fill: row.isCurrent ? "var(--text-primary)" : "var(--text-secondary)",
+      }, svg);
+      catLabel.textContent = row.cond.charAt(0).toUpperCase() + row.cond.slice(1) + (row.isCurrent ? " (current)" : "");
+    });
+  }
+
+  /* ---- Data table ---- */
+  function renderTable(result, mw, accuracy, market) {
+    const tbody = document.getElementById("dataTableBody");
+    tbody.innerHTML = "";
+    const rows = [
+      ["Curtailable capacity", mw.toFixed(1) + " MW"],
+      ["Forecast accuracy assumption", fmtPct(accuracy)],
+      ["Market condition", market.charAt(0).toUpperCase() + market.slice(1)],
+      ["4CP transmission charge avoidance", fmtUSD.format(result.fourCpValue)],
+      ["Ancillary services revenue", fmtUSD.format(result.ancillaryValue)],
+      ["RT price spike avoidance", fmtUSD.format(result.rtAvoidanceValue)],
+      ["Gross annual value", fmtUSD.format(result.grossValue)],
+      ["Program costs", fmtUSD.format(result.programCosts)],
+      ["Net annual value", fmtUSD.format(result.netValue)],
+    ];
+    rows.forEach(([label, value]) => {
+      const tr = document.createElement("tr");
+      const td1 = document.createElement("td");
+      td1.textContent = label;
+      const td2 = document.createElement("td");
+      td2.textContent = value;
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ---- Main render ---- */
+  function render() {
+    const result = runScenario(state.mw, state.accuracy, state.market, DEFAULT_RATES);
+
+    document.getElementById("statGross").textContent = fmtUSD.format(result.grossValue);
+    document.getElementById("statCosts").textContent = fmtUSD.format(result.programCosts);
+    document.getElementById("statNet").textContent = fmtUSD.format(result.netValue);
+
+    const correctlyCalled = pythonRound(state.accuracy * ANNUAL_4CP_INTERVALS);
+    document.getElementById("accHint").textContent =
+      "≈ " + correctlyCalled + " of 4 4CP intervals correctly called";
+    document.getElementById("mwHint").textContent = (state.mw * 1000).toLocaleString() + " kW enrolled";
+    document.getElementById("marketHint").textContent =
+      "RT rate: $" + DEFAULT_RATES.rtSpikeRatePerKwYear[state.market] + "/kW-yr";
+
+    renderBreakdownChart(result);
+    renderForecastChart(result, state.mw, state.accuracy, DEFAULT_RATES);
+    renderMarketChart(state.mw, state.accuracy, state.market, DEFAULT_RATES);
+    renderTable(result, state.mw, state.accuracy, state.market);
+  }
+
+  /* ---- Input wiring ---- */
+  const mwRange = document.getElementById("mwRange");
+  const mwNumber = document.getElementById("mwNumber");
+  const accRange = document.getElementById("accRange");
+  const accNumber = document.getElementById("accNumber");
+  const marketSeg = document.getElementById("marketSeg");
+
+  function syncMw(v) {
+    state.mw = Math.min(50, Math.max(0.5, v));
+    mwRange.value = state.mw;
+    mwNumber.value = state.mw;
+    render();
+  }
+  function syncAcc(vPercent) {
+    const clamped = Math.min(100, Math.max(0, vPercent));
+    state.accuracy = clamped / 100;
+    accRange.value = clamped;
+    accNumber.value = clamped;
+    render();
+  }
+
+  mwRange.addEventListener("input", () => syncMw(parseFloat(mwRange.value)));
+  mwNumber.addEventListener("input", () => { if (mwNumber.value !== "") syncMw(parseFloat(mwNumber.value)); });
+  accRange.addEventListener("input", () => syncAcc(parseFloat(accRange.value)));
+  accNumber.addEventListener("input", () => { if (accNumber.value !== "") syncAcc(parseFloat(accNumber.value)); });
+
+  marketSeg.addEventListener("click", (evt) => {
+    const btn = evt.target.closest("button[data-market]");
+    if (!btn) return;
+    state.market = btn.dataset.market;
+    marketSeg.querySelectorAll("button").forEach(b => b.classList.toggle("active", b === btn));
+    render();
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    state.market = "base";
+    marketSeg.querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.market === "base"));
+    syncMw(5);
+    syncAcc(75);
+  });
+
+  const themeToggle = document.getElementById("themeToggle");
+  themeToggle.addEventListener("click", () => {
+    const html = document.documentElement;
+    const current = html.getAttribute("data-theme");
+    if (current === "dark") html.setAttribute("data-theme", "light");
+    else if (current === "light") html.removeAttribute("data-theme");
+    else html.setAttribute("data-theme", "dark");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
