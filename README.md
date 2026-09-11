@@ -1,91 +1,86 @@
 # ERCOT Demand-Side Value Model
 
+**[Live demo — Internal Analysis Dashboard](https://gianimichael.github.io/DERM-ROI-Calculator/dashboard/internal_analysis.html)**
+
 A Python financial model that estimates the commercial value of enrolling a
 flexible C&I (commercial/industrial) customer's curtailable load into ERCOT
-demand-side programs. Built as a portfolio piece for the DER/BESS energy
-industry.
+demand-side programs — built as a DER/BESS commercial revenue modeling
+portfolio piece to demonstrate how a flexible load's value stack (peak
+charge avoidance, grid services revenue, energy price arbitrage) actually
+gets priced and pitched in practice.
 
-## What it models
+## What it calculates
 
-Given a customer's curtailable load (MW), a forecast accuracy assumption,
-and an assumed market condition, the model estimates three independent
-annual value streams and nets them against program costs:
+Given a curtailable load (MW), a forecast accuracy assumption, and a market
+condition, the engine (`src/ercot_demand_value.py`) estimates three
+independent annual value streams:
 
-1. **4CP transmission charge avoidance** — savings from curtailing load
-   during ERCOT's four coincident peak (4CP) intervals, which set a Load
-   Serving Entity's transmission cost allocation for the following year.
-   This value is forecast-dependent: intervals aren't known until after
-   the fact, so missing one loses that interval's share of value entirely
-   (a step function over the four intervals, not a smooth discount).
+1. **4CP transmission charge avoidance** — savings from curtailing during
+   ERCOT's four coincident peak intervals. Modeled as a step function over
+   the four intervals (missing one loses that quarter's value entirely),
+   not a smooth discount, since the intervals aren't known until after the
+   fact.
 2. **Ancillary services revenue** — combined ERS/RRS/ECRS capacity
-   payments for keeping the load available to respond to grid emergencies.
-   This is an ongoing capacity payment, not tied to any specific peak
-   interval, so it is unaffected by forecast accuracy.
+   payments for staying enrolled and available. An ongoing payment,
+   unaffected by forecast accuracy.
 3. **Real-time price spike avoidance** — savings from curtailing during
-   ERCOT real-time market scarcity pricing events. This swings
-   significantly with grid conditions year to year (extreme
-   weather/tight reserves vs. a mild year), so it is modeled by market
-   condition (weak/base/strong).
+   scarcity-priced RTM intervals. Swings with market condition
+   (weak/base/strong) since price volatility varies significantly year to
+   year.
 
-Program costs are a flat aggregator platform fee plus a revenue share
-applied only to ancillary services and real-time avoidance revenue — 4CP
-avoidance is a passive reduction in the customer's own transmission bill,
-not a market-settled payment the aggregator facilitates, so it isn't
-shared.
+Program costs are a flat platform fee plus a 15% revenue share applied only
+to ancillary services and RT avoidance (4CP avoidance is a passive bill
+reduction, not a market-settled payment the aggregator facilitates). See
+each function's docstring in `src/ercot_demand_value.py` for the real-world
+mechanic behind it, not just the formula.
 
-See the docstrings in `src/ercot_demand_value.py` for the real-world
-mechanics behind each calculation.
+## Dashboards
 
-## Project structure
+Two self-contained HTML files in `/dashboard`, both driven by a JS
+reimplementation of the same engine logic (kept in sync with the Python
+by hand, commented as such):
 
-```
-ercot-demand-value-model/
-├── data/                     # ERCOT market data CSVs (4CP history, AS prices, RTM prices) — added later
-├── src/
-│   ├── ercot_demand_value.py # Calculation engine
-│   └── main.py                # Sample scenario runner + JSON export
-├── tests/
-│   └── test_ercot_demand_value.py
-├── output/                   # Generated results (CSV/JSON) — gitignored, regenerate via main.py
-├── requirements.txt
-└── README.md
-```
+- **`internal_analysis.html`** — the analyst tool. Live sliders for MW,
+  forecast accuracy, and market condition recalculate every stat and chart
+  instantly: a revenue-stream breakdown, a 4CP step-function chart across
+  forecast-accuracy scenarios, and a weak/base/strong sensitivity range.
+- **`customer_proposal.html`** — a static, non-technical proposal template
+  (plain-English line items, no ERCOT jargon) for handing to a customer.
 
-## Setup
+The two are connected: internal_analysis.html has a **"Generate Customer
+Proposal"** button that takes whatever the sliders are currently set to and
+opens a populated version of the proposal template in a new tab, so an
+analyst can go from exploring a scenario to a client-ready document in one
+click.
+
+## Status
+
+**Real and working:** the calculation engine, its 20-test unit test suite
+(`tests/test_ercot_demand_value.py`), the sample scenario runner
+(`src/main.py`), and both dashboards — all verified to produce matching
+numbers across Python, JS, and the rendered pages.
+
+**Still an estimate:** the dollar rates in `ProgramRates` (4CP $/MW-year,
+AS $/kW-year, RT spike $/kW-year by market condition) are illustrative
+placeholders, not sourced from a specific ERCOT settlement year. Real
+historical ERCOT data (published via ERCOT's MIS public reports, and via
+the open-source `gridstatus` library) was attempted but is currently
+**blocked by this development environment's network policy**, which denies
+outbound access to `ercot.com` outright — not an ERCOT login wall. No data
+has been fabricated or substituted to work around this; the model plainly
+runs on documented benchmark estimates until real data can be pulled in
+from an environment that can reach ERCOT.
+
+## Running it locally
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-```
 
-## Usage
-
-Run the sample scenario (5 MW curtailable load, 75% forecast accuracy,
-base market condition):
-
-```bash
-python -m src.main
-```
-
-This prints a summary of gross value, program costs, and net value, and
-writes the result to `output/sample_scenario_result.json`.
-
-## Tests
-
-```bash
+python -m src.main              # sample scenario -> console summary + output/*.json
 python -m unittest discover tests
 ```
 
-## Rate assumptions
-
-Default rates in `ProgramRates` (see `src/ercot_demand_value.py`) are
-illustrative placeholders sized to real ERCOT market magnitudes, not
-sourced from a specific settlement year. Once historical ERCOT data (4CP
-settlement values, AS clearing prices, RTM price history) is added to
-`/data`, those CSVs should replace the defaults.
-
-## Status
-
-Calculation core and unit tests are complete. Data ingestion from `/data`
-CSVs and a dashboard front end are not yet built.
+Open either file in `/dashboard` directly in a browser — no build step or
+server required.
